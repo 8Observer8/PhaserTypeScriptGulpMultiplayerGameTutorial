@@ -1,0 +1,15 @@
+{
+    "files": [
+        "src/main.ts",
+        "src/Game.ts",
+        "src/Level.ts",
+        "src/PlayerHelper.ts"
+    ],
+    "compilerOptions": {
+        "noImplicitAny": true,
+        "target": "es5",
+        "lib": [
+            "es2015", "dom"
+        ]
+    }
+}

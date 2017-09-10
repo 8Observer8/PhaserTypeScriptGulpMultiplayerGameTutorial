@@ -1,0 +1,34 @@
+{
+        "version": "0.2.0",
+        "configurations": [
+            {
+                "type": "chrome",
+                "request": "attach",
+                "name": "Attach to Chrome",
+                "port": 8080,
+                "webRoot": "${workspaceRoot}"
+            },
+            {
+                "type": "chrome",
+                "request": "launch",
+                "name": "Client",
+                "url": "http://localhost:2000",
+                "webRoot": "${workspaceRoot}"
+            },
+            {
+                "type": "node",
+                "request": "launch",
+                "name": "Server",
+                "program": "${workspaceRoot}/server.js",
+                "outFiles": [
+                    "${workspaceRoot}/**/*.js"
+                ]
+            }
+        ],
+        "compounds": [
+            {
+                "name": "Server/Client",
+                "configurations": ["Server", "Client"]
+            }
+        ]
+    }

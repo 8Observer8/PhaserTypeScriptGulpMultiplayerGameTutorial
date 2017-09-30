@@ -6,8 +6,10 @@ The project is used Multi-target debugging in VS Code for client and server. See
 Install:
 npm install
 
-Building the client:
-gulp
+For building the client: gulp client
 
-Building the server:
-tsc server.ts Player.ts --sourceMap
+For building the server: gulp server
+
+For building the client and the server: gulp
+
+For running the server and the client: press "Server/Clint" button in Debug mode in VSCode

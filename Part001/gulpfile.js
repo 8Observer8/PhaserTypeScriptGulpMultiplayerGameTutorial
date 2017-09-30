@@ -8,7 +8,13 @@ var buffer = require('vinyl-buffer');
 var ts = require('gulp-typescript');
 var tsProject = ts.createProject("tsconfig.json");
 
-gulp.task("default", ["server"], function () {
+
+
+gulp.task("default", ["server", "client"], function () {
+    
+});
+
+gulp.task("client", function() {
     return browserify({
         basedir: '.',
         debug: true,

@@ -87,7 +87,7 @@ export class Level extends Phaser.State
         this._player.lineStyle(2, 0xffd900, 1);
         this._player.drawCircle(0, 0, radius * 2);
         this._player.endFill();
-        this._player.pivot.set(50, 50);
+        //this._player.pivot.set(50, 50);
         let bodySize = radius;
 
         // Draw a shape

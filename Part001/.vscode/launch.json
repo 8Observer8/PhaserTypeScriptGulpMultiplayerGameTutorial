@@ -19,7 +19,7 @@
                 "type": "node",
                 "request": "launch",
                 "name": "Server",
-                "program": "${workspaceRoot}/server.js",
+                "program": "${workspaceRoot}/src_server/server.js",
                 "outFiles": [
                     "${workspaceRoot}/**/*.js"
                 ]

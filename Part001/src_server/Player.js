@@ -1,5 +1,5 @@
 "use strict";
-exports.__esModule = true;
+Object.defineProperty(exports, "__esModule", { value: true });
 var Player = /** @class */ (function () {
     function Player(startX, startY, startAngle) {
         this.x = startX;
@@ -9,4 +9,5 @@ var Player = /** @class */ (function () {
     return Player;
 }());
 exports.Player = Player;
+
 //# sourceMappingURL=Player.js.map

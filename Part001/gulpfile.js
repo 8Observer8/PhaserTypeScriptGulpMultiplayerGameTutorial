@@ -1,16 +1,18 @@
-var gulp = require("gulp");
-var browserify = require("browserify");
+var gulp = require('gulp');
+var browserify = require('browserify');
 var source = require('vinyl-source-stream');
-var tsify = require("tsify");
+var tsify = require('tsify');
 var uglify = require('gulp-uglify');
 var sourcemaps = require('gulp-sourcemaps');
 var buffer = require('vinyl-buffer');
+var ts = require('gulp-typescript');
+var tsProject = ts.createProject("tsconfig.json");
 
-gulp.task("default", function () {
+gulp.task("default", ["server"], function () {
     return browserify({
         basedir: '.',
         debug: true,
-        entries: ['src/main.ts'],
+        entries: ['src_client/main.ts'],
         cache: {},
         packageCache: {}
     })
@@ -22,4 +24,12 @@ gulp.task("default", function () {
     //.pipe(uglify())
     .pipe(sourcemaps.write('./'))
     .pipe(gulp.dest("public"));
+});
+
+gulp.task("server", function() {
+    return tsProject.src()
+        .pipe(sourcemaps.init())
+        .pipe(tsProject())
+        .pipe(sourcemaps.write("."))
+        .pipe(gulp.dest("./src_server/"));
 });

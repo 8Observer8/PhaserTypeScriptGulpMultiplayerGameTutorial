@@ -6506,7 +6506,6 @@ var Level = /** @class */ (function (_super) {
         this._player.lineStyle(2, 0xffd900, 1);
         this._player.drawCircle(0, 0, radius * 2);
         this._player.endFill();
-        //this._player.pivot.set(50, 50);
         var bodySize = radius;
         // Draw a shape
         this.physics.p2.enableBody(this._player, true);
@@ -6615,7 +6614,6 @@ var RemotePlayer = /** @class */ (function () {
         this.player.lineStyle(2, 0xffd900, 1);
         this.player.drawCircle(0, 0, radius * 2);
         this.player.endFill();
-        this.player.pivot.set(50, 50);
         var bodySize = radius;
         // Draw a shape
         state.physics.p2.enableBody(this.player, true);

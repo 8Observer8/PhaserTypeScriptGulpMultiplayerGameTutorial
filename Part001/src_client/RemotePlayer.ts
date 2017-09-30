@@ -28,7 +28,6 @@ export class RemotePlayer
         this.player.lineStyle(2, 0xffd900, 1);
         this.player.drawCircle(0, 0, radius * 2);
         this.player.endFill();
-        this.player.pivot.set(50, 50);
         let bodySize = radius;
 
         // Draw a shape

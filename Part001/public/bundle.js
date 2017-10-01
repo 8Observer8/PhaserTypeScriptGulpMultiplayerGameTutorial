@@ -1,4 +1,249 @@
 (function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
+"use strict";
+/// <reference path="./libs/phaser.d.ts" />
+var __extends = (this && this.__extends) || (function () {
+    var extendStatics = Object.setPrototypeOf ||
+        ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
+        function (d, b) { for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p]; };
+    return function (d, b) {
+        extendStatics(d, b);
+        function __() { this.constructor = d; }
+        d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
+    };
+})();
+Object.defineProperty(exports, "__esModule", { value: true });
+var Level_1 = require("./Level");
+var Game = /** @class */ (function (_super) {
+    __extends(Game, _super);
+    function Game() {
+        var _this = _super.call(this, window.innerWidth * window.devicePixelRatio, window.innerHeight * window.devicePixelRatio, Phaser.CANVAS, "gameDiv") || this;
+        _this.state.add("Level", Level_1.Level, false);
+        _this.state.start("Level");
+        return _this;
+    }
+    return Game;
+}(Phaser.Game));
+exports.Game = Game;
+},{"./Level":3}],2:[function(require,module,exports){
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+var GameProperties = /** @class */ (function () {
+    function GameProperties() {
+    }
+    GameProperties.GameWidth = 4000;
+    GameProperties.GameHeight = 4000;
+    GameProperties.GameElement = "gameDiv";
+    GameProperties.InGame = false;
+    return GameProperties;
+}());
+exports.GameProperties = GameProperties;
+},{}],3:[function(require,module,exports){
+"use strict";
+/// <reference path="./libs/phaser.d.ts" />
+var __extends = (this && this.__extends) || (function () {
+    var extendStatics = Object.setPrototypeOf ||
+        ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
+        function (d, b) { for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p]; };
+    return function (d, b) {
+        extendStatics(d, b);
+        function __() { this.constructor = d; }
+        d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
+    };
+})();
+Object.defineProperty(exports, "__esModule", { value: true });
+var io = require("socket.io-client");
+var GameProperties_1 = require("./GameProperties");
+var PlayerHelper_1 = require("./PlayerHelper");
+var RemotePlayer_1 = require("./RemotePlayer");
+var Level = /** @class */ (function (_super) {
+    __extends(Level, _super);
+    function Level() {
+        var _this = _super !== null && _super.apply(this, arguments) || this;
+        _this._enemyList = [];
+        return _this;
+    }
+    Level.prototype.preload = function () {
+        this.stage.disableVisibilityChange = true;
+        this.scale.scaleMode = Phaser.ScaleManager.RESIZE;
+        this.world.setBounds(0, 0, GameProperties_1.GameProperties.GameWidth, GameProperties_1.GameProperties.GameHeight);
+        this.physics.startSystem(Phaser.Physics.P2JS);
+        this.physics.p2.setBoundsToWorld(false, false, false, false);
+        this.physics.p2.gravity.y = 0;
+        this.physics.p2.applyGravity = false;
+        this.physics.p2.enableBody(this.physics.p2.walls, false);
+        // physics start system
+        //game.physics.p2.setImpactEvents(true);
+    };
+    Level.prototype.create = function () {
+        var _this = this;
+        this._socket = io.connect();
+        this.stage.backgroundColor = 0xE1A193;
+        console.log("client started");
+        this._socket.on("connect", function () { _this.OnSocketConnected(); });
+        // Listen to new enemy connections
+        this._socket.on("new_enemyPlayer", function (data) {
+            _this.OnNewPlayer(data);
+        });
+        // Listen to enemy movement 
+        this._socket.on("enemy_move", function (data) {
+            _this.OnEnemyMove(data);
+        });
+        // When received remove_player, remove the player passed; 
+        this._socket.on('remove_player', function (data) {
+            _this.OnRemovePlayer(data);
+        });
+    };
+    Level.prototype.update = function () {
+        // Move the player when the player is made
+        if (GameProperties_1.GameProperties.InGame) {
+            var pointer = this.input.mousePointer;
+            if (PlayerHelper_1.PlayerHelper.DistanceToPointer(this._player, pointer) <= 50) {
+                PlayerHelper_1.PlayerHelper.MoveToPointer(this._player, 0, pointer, 100);
+            }
+            else {
+                PlayerHelper_1.PlayerHelper.MoveToPointer(this._player, 500, pointer, 100);
+            }
+            // Send a new position data to the server 
+            this._socket.emit('move_player', { x: this._player.x, y: this._player.y, angle: this._player.angle });
+        }
+    };
+    Level.prototype.CreatePlayer = function () {
+        this._player = this.add.graphics(0, 0);
+        var radius = 100;
+        // Set a fill and line style
+        this._player.beginFill(0xffd900);
+        this._player.lineStyle(2, 0xffd900, 1);
+        this._player.drawCircle(0, 0, radius * 2);
+        this._player.endFill();
+        var bodySize = radius;
+        // Draw a shape
+        this.physics.p2.enableBody(this._player, true);
+        this._player.body.clearShapes();
+        this._player.body.addCircle(bodySize, 0, 0);
+        this._player.body.data.shapes[0].sensor = true;
+    };
+    Level.prototype.OnSocketConnected = function () {
+        console.log("OnSocketConnected: connected to server");
+        this.CreatePlayer();
+        GameProperties_1.GameProperties.InGame = true;
+        // Send the server our initial position and tell it we are connectedthis._socket.
+        this._socket.emit("new_player", { x: 0, y: 0, angle: 0 });
+    };
+    Level.prototype.OnNewPlayer = function (data) {
+        // Enemy object
+        var newEnemy = new RemotePlayer_1.RemotePlayer(data.id, data.x, data.y, data.angle, this);
+        this._enemyList.push(newEnemy);
+    };
+    // Server tells us there is a new enemy movement. We find the moved enemy
+    // and sync the enemy movement with the server
+    Level.prototype.OnEnemyMove = function (data) {
+        var movePlayer = this.FindEnemyById(data.id);
+        if (!movePlayer) {
+            return;
+        }
+        movePlayer.player.body.x = data.x;
+        movePlayer.player.body.y = data.y;
+        movePlayer.player.angle = data.angle;
+    };
+    // When the server notifies us of client disconnection, we find the disconnected
+    // enemy and remove from our game
+    Level.prototype.OnRemovePlayer = function (data) {
+        console.log("OnRemovePlayer");
+        var removePlayer = this.FindEnemyById(data.id);
+        // Player not found
+        if (!removePlayer) {
+            console.log('Player not found: ', data.id);
+            return;
+        }
+        removePlayer.player.destroy();
+        this._enemyList.splice(this._enemyList.indexOf(removePlayer), 1);
+    };
+    Level.prototype.FindEnemyById = function (id) {
+        for (var i = 0; i < this._enemyList.length; i++) {
+            if (this._enemyList[i].id == id) {
+                return this._enemyList[i];
+            }
+        }
+        return null;
+    };
+    return Level;
+}(Phaser.State));
+exports.Level = Level;
+},{"./GameProperties":2,"./PlayerHelper":4,"./RemotePlayer":5,"socket.io-client":39}],4:[function(require,module,exports){
+"use strict";
+/// <reference path="./libs/phaser.d.ts" />
+Object.defineProperty(exports, "__esModule", { value: true });
+var PlayerHelper = /** @class */ (function () {
+    function PlayerHelper() {
+    }
+    PlayerHelper.MoveToPointer = function (displayObject, speed, pointer, maxTime) {
+        var angle = this.AngleToPointer(displayObject, pointer);
+        if (maxTime > 0) {
+            //  We know how many pixels we need to move, but how fast?
+            speed = this.DistanceToPointer(displayObject, pointer) / (maxTime / 1000);
+        }
+        displayObject.body.velocity.x = Math.cos(angle) * speed;
+        displayObject.body.velocity.y = Math.sin(angle) * speed;
+        return angle;
+    };
+    PlayerHelper.DistanceToPointer = function (displayObject, pointer, isWorld) {
+        if (isWorld === void 0) { isWorld = false; }
+        var dx = (isWorld) ? displayObject.world.x - pointer.worldX :
+            displayObject.x - pointer.worldX;
+        var dy = (isWorld) ? displayObject.world.y - pointer.worldY :
+            displayObject.y - pointer.worldY;
+        return Math.sqrt(dx * dx + dy * dy);
+    };
+    PlayerHelper.AngleToPointer = function (displayObject, pointer, isWorld) {
+        if (isWorld === void 0) { isWorld = false; }
+        if (isWorld) {
+            return Math.atan2(pointer.worldY - displayObject.world.y, pointer.worldX - displayObject.world.x);
+        }
+        else {
+            return Math.atan2(pointer.worldY - displayObject.y, pointer.worldX - displayObject.x);
+        }
+    };
+    return PlayerHelper;
+}());
+exports.PlayerHelper = PlayerHelper;
+},{}],5:[function(require,module,exports){
+"use strict";
+/// <reference path="./libs/phaser.d.ts" />
+Object.defineProperty(exports, "__esModule", { value: true });
+var RemotePlayer = /** @class */ (function () {
+    function RemotePlayer(id, startX, startY, startAngle, state) {
+        this.id = id;
+        this.x = startX;
+        this.y = startY;
+        this.angle = startAngle;
+        this.player = state.add.graphics(this.x, this.y);
+        var radius = 100;
+        // Set a fill and line style
+        this.player.beginFill(0xffd900);
+        this.player.lineStyle(2, 0xffd900, 1);
+        this.player.drawCircle(0, 0, radius * 2);
+        this.player.endFill();
+        var bodySize = radius;
+        // Draw a shape
+        state.physics.p2.enableBody(this.player, true);
+        this.player.body.clearShapes();
+        this.player.body.addCircle(bodySize, 0, 0);
+        this.player.body.data.shapes[0].sensor = true;
+    }
+    return RemotePlayer;
+}());
+exports.RemotePlayer = RemotePlayer;
+},{}],6:[function(require,module,exports){
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+var Game_1 = require("./Game");
+function hello(compiler) {
+    console.log("Hello from " + compiler);
+}
+window.onload = function () {
+    new Game_1.Game();
+};
+},{"./Game":1}],7:[function(require,module,exports){
 module.exports = after
 
 function after(count, callback, err_cb) {
@@ -28,7 +273,7 @@ function after(count, callback, err_cb) {
 
 function noop() {}
 
-},{}],2:[function(require,module,exports){
+},{}],8:[function(require,module,exports){
 /**
  * An abstraction for slicing an arraybuffer even when
  * ArrayBuffer.prototype.slice is not supported
@@ -59,7 +304,7 @@ module.exports = function(arraybuffer, start, end) {
   return result.buffer;
 };
 
-},{}],3:[function(require,module,exports){
+},{}],9:[function(require,module,exports){
 
 /**
  * Expose `Backoff`.
@@ -146,7 +391,7 @@ Backoff.prototype.setJitter = function(jitter){
 };
 
 
-},{}],4:[function(require,module,exports){
+},{}],10:[function(require,module,exports){
 /*
  * base64-arraybuffer
  * https://github.com/niklasvh/base64-arraybuffer
@@ -215,7 +460,7 @@ Backoff.prototype.setJitter = function(jitter){
   };
 })();
 
-},{}],5:[function(require,module,exports){
+},{}],11:[function(require,module,exports){
 (function (global){
 /**
  * Create a blob builder even when vendor prefixes exist
@@ -316,9 +561,9 @@ module.exports = (function() {
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
 
-},{}],6:[function(require,module,exports){
+},{}],12:[function(require,module,exports){
 
-},{}],7:[function(require,module,exports){
+},{}],13:[function(require,module,exports){
 /**
  * Slice reference.
  */
@@ -343,7 +588,7 @@ module.exports = function(obj, fn){
   }
 };
 
-},{}],8:[function(require,module,exports){
+},{}],14:[function(require,module,exports){
 
 /**
  * Expose `Emitter`.
@@ -508,7 +753,7 @@ Emitter.prototype.hasListeners = function(event){
   return !! this.listeners(event).length;
 };
 
-},{}],9:[function(require,module,exports){
+},{}],15:[function(require,module,exports){
 
 module.exports = function(a, b){
   var fn = function(){};
@@ -516,7 +761,7 @@ module.exports = function(a, b){
   a.prototype = new fn;
   a.prototype.constructor = a;
 };
-},{}],10:[function(require,module,exports){
+},{}],16:[function(require,module,exports){
 (function (process){
 /**
  * This is the web browser implementation of `debug()`.
@@ -706,7 +951,7 @@ function localstorage() {
 
 }).call(this,require('_process'))
 
-},{"./debug":11,"_process":32}],11:[function(require,module,exports){
+},{"./debug":17,"_process":38}],17:[function(require,module,exports){
 
 /**
  * This is the common logic for both the Node.js and web browser
@@ -910,11 +1155,11 @@ function coerce(val) {
   return val;
 }
 
-},{"ms":29}],12:[function(require,module,exports){
+},{"ms":35}],18:[function(require,module,exports){
 
 module.exports = require('./lib/index');
 
-},{"./lib/index":13}],13:[function(require,module,exports){
+},{"./lib/index":19}],19:[function(require,module,exports){
 
 module.exports = require('./socket');
 
@@ -926,7 +1171,7 @@ module.exports = require('./socket');
  */
 module.exports.parser = require('engine.io-parser');
 
-},{"./socket":14,"engine.io-parser":22}],14:[function(require,module,exports){
+},{"./socket":20,"engine.io-parser":28}],20:[function(require,module,exports){
 (function (global){
 /**
  * Module dependencies.
@@ -1674,7 +1919,7 @@ Socket.prototype.filterUpgrades = function (upgrades) {
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
 
-},{"./transport":15,"./transports/index":16,"component-emitter":8,"debug":10,"engine.io-parser":22,"indexof":27,"parseqs":30,"parseuri":31}],15:[function(require,module,exports){
+},{"./transport":21,"./transports/index":22,"component-emitter":14,"debug":16,"engine.io-parser":28,"indexof":33,"parseqs":36,"parseuri":37}],21:[function(require,module,exports){
 /**
  * Module dependencies.
  */
@@ -1833,7 +2078,7 @@ Transport.prototype.onClose = function () {
   this.emit('close');
 };
 
-},{"component-emitter":8,"engine.io-parser":22}],16:[function(require,module,exports){
+},{"component-emitter":14,"engine.io-parser":28}],22:[function(require,module,exports){
 (function (global){
 /**
  * Module dependencies
@@ -1891,7 +2136,7 @@ function polling (opts) {
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
 
-},{"./polling-jsonp":17,"./polling-xhr":18,"./websocket":20,"xmlhttprequest-ssl":21}],17:[function(require,module,exports){
+},{"./polling-jsonp":23,"./polling-xhr":24,"./websocket":26,"xmlhttprequest-ssl":27}],23:[function(require,module,exports){
 (function (global){
 
 /**
@@ -2127,7 +2372,7 @@ JSONPPolling.prototype.doWrite = function (data, fn) {
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
 
-},{"./polling":19,"component-inherit":9}],18:[function(require,module,exports){
+},{"./polling":25,"component-inherit":15}],24:[function(require,module,exports){
 (function (global){
 /**
  * Module requirements.
@@ -2545,7 +2790,7 @@ function unloadHandler () {
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
 
-},{"./polling":19,"component-emitter":8,"component-inherit":9,"debug":10,"xmlhttprequest-ssl":21}],19:[function(require,module,exports){
+},{"./polling":25,"component-emitter":14,"component-inherit":15,"debug":16,"xmlhttprequest-ssl":27}],25:[function(require,module,exports){
 /**
  * Module dependencies.
  */
@@ -2792,7 +3037,7 @@ Polling.prototype.uri = function () {
   return schema + '://' + (ipv6 ? '[' + this.hostname + ']' : this.hostname) + port + this.path + query;
 };
 
-},{"../transport":15,"component-inherit":9,"debug":10,"engine.io-parser":22,"parseqs":30,"xmlhttprequest-ssl":21,"yeast":42}],20:[function(require,module,exports){
+},{"../transport":21,"component-inherit":15,"debug":16,"engine.io-parser":28,"parseqs":36,"xmlhttprequest-ssl":27,"yeast":48}],26:[function(require,module,exports){
 (function (global){
 /**
  * Module dependencies.
@@ -3083,7 +3328,7 @@ WS.prototype.check = function () {
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
 
-},{"../transport":15,"component-inherit":9,"debug":10,"engine.io-parser":22,"parseqs":30,"ws":6,"yeast":42}],21:[function(require,module,exports){
+},{"../transport":21,"component-inherit":15,"debug":16,"engine.io-parser":28,"parseqs":36,"ws":12,"yeast":48}],27:[function(require,module,exports){
 (function (global){
 // browser shim for xmlhttprequest module
 
@@ -3125,7 +3370,7 @@ module.exports = function (opts) {
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
 
-},{"has-cors":26}],22:[function(require,module,exports){
+},{"has-cors":32}],28:[function(require,module,exports){
 (function (global){
 /**
  * Module dependencies.
@@ -3736,7 +3981,7 @@ exports.decodePayloadAsBinary = function (data, binaryType, callback) {
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
 
-},{"./keys":23,"./utf8":24,"after":1,"arraybuffer.slice":2,"base64-arraybuffer":4,"blob":5,"has-binary2":25}],23:[function(require,module,exports){
+},{"./keys":29,"./utf8":30,"after":7,"arraybuffer.slice":8,"base64-arraybuffer":10,"blob":11,"has-binary2":31}],29:[function(require,module,exports){
 
 /**
  * Gets the keys for an object.
@@ -3757,7 +4002,7 @@ module.exports = Object.keys || function keys (obj){
   return arr;
 };
 
-},{}],24:[function(require,module,exports){
+},{}],30:[function(require,module,exports){
 (function (global){
 /*! https://mths.be/utf8js v2.1.2 by @mathias */
 ;(function(root) {
@@ -4017,7 +4262,7 @@ module.exports = Object.keys || function keys (obj){
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
 
-},{}],25:[function(require,module,exports){
+},{}],31:[function(require,module,exports){
 (function (global){
 /* global Blob File */
 
@@ -4084,7 +4329,7 @@ function hasBinary (obj) {
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
 
-},{"isarray":28}],26:[function(require,module,exports){
+},{"isarray":34}],32:[function(require,module,exports){
 
 /**
  * Module exports.
@@ -4103,7 +4348,7 @@ try {
   module.exports = false;
 }
 
-},{}],27:[function(require,module,exports){
+},{}],33:[function(require,module,exports){
 
 var indexOf = [].indexOf;
 
@@ -4114,14 +4359,14 @@ module.exports = function(arr, obj){
   }
   return -1;
 };
-},{}],28:[function(require,module,exports){
+},{}],34:[function(require,module,exports){
 var toString = {}.toString;
 
 module.exports = Array.isArray || function (arr) {
   return toString.call(arr) == '[object Array]';
 };
 
-},{}],29:[function(require,module,exports){
+},{}],35:[function(require,module,exports){
 /**
  * Helpers.
  */
@@ -4275,7 +4520,7 @@ function plural(ms, n, name) {
   return Math.ceil(ms / n) + ' ' + name + 's';
 }
 
-},{}],30:[function(require,module,exports){
+},{}],36:[function(require,module,exports){
 /**
  * Compiles a querystring
  * Returns string representation of the object
@@ -4314,7 +4559,7 @@ exports.decode = function(qs){
   return qry;
 };
 
-},{}],31:[function(require,module,exports){
+},{}],37:[function(require,module,exports){
 /**
  * Parses an URI
  *
@@ -4355,7 +4600,7 @@ module.exports = function parseuri(str) {
     return uri;
 };
 
-},{}],32:[function(require,module,exports){
+},{}],38:[function(require,module,exports){
 // shim for using process in browser
 var process = module.exports = {};
 
@@ -4541,7 +4786,7 @@ process.chdir = function (dir) {
 };
 process.umask = function() { return 0; };
 
-},{}],33:[function(require,module,exports){
+},{}],39:[function(require,module,exports){
 
 /**
  * Module dependencies.
@@ -4637,7 +4882,7 @@ exports.connect = lookup;
 exports.Manager = require('./manager');
 exports.Socket = require('./socket');
 
-},{"./manager":34,"./socket":36,"./url":37,"debug":10,"socket.io-parser":39}],34:[function(require,module,exports){
+},{"./manager":40,"./socket":42,"./url":43,"debug":16,"socket.io-parser":45}],40:[function(require,module,exports){
 
 /**
  * Module dependencies.
@@ -5212,7 +5457,7 @@ Manager.prototype.onreconnect = function () {
   this.emitAll('reconnect', attempt);
 };
 
-},{"./on":35,"./socket":36,"backo2":3,"component-bind":7,"component-emitter":8,"debug":10,"engine.io-client":12,"indexof":27,"socket.io-parser":39}],35:[function(require,module,exports){
+},{"./on":41,"./socket":42,"backo2":9,"component-bind":13,"component-emitter":14,"debug":16,"engine.io-client":18,"indexof":33,"socket.io-parser":45}],41:[function(require,module,exports){
 
 /**
  * Module exports.
@@ -5238,7 +5483,7 @@ function on (obj, ev, fn) {
   };
 }
 
-},{}],36:[function(require,module,exports){
+},{}],42:[function(require,module,exports){
 
 /**
  * Module dependencies.
@@ -5658,7 +5903,7 @@ Socket.prototype.compress = function (compress) {
   return this;
 };
 
-},{"./on":35,"component-bind":7,"component-emitter":8,"debug":10,"parseqs":30,"socket.io-parser":39,"to-array":41}],37:[function(require,module,exports){
+},{"./on":41,"component-bind":13,"component-emitter":14,"debug":16,"parseqs":36,"socket.io-parser":45,"to-array":47}],43:[function(require,module,exports){
 (function (global){
 
 /**
@@ -5738,7 +5983,7 @@ function url (uri, loc) {
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
 
-},{"debug":10,"parseuri":31}],38:[function(require,module,exports){
+},{"debug":16,"parseuri":37}],44:[function(require,module,exports){
 (function (global){
 /*global Blob,File*/
 
@@ -5884,7 +6129,7 @@ exports.removeBlobs = function(data, callback) {
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
 
-},{"./is-buffer":40,"isarray":28}],39:[function(require,module,exports){
+},{"./is-buffer":46,"isarray":34}],45:[function(require,module,exports){
 
 /**
  * Module dependencies.
@@ -6286,7 +6531,7 @@ function error() {
   };
 }
 
-},{"./binary":38,"./is-buffer":40,"component-emitter":8,"debug":10,"has-binary2":25}],40:[function(require,module,exports){
+},{"./binary":44,"./is-buffer":46,"component-emitter":14,"debug":16,"has-binary2":31}],46:[function(require,module,exports){
 (function (global){
 
 module.exports = isBuf;
@@ -6304,7 +6549,7 @@ function isBuf(obj) {
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
 
-},{}],41:[function(require,module,exports){
+},{}],47:[function(require,module,exports){
 module.exports = toArray
 
 function toArray(list, index) {
@@ -6319,7 +6564,7 @@ function toArray(list, index) {
     return array
 }
 
-},{}],42:[function(require,module,exports){
+},{}],48:[function(require,module,exports){
 'use strict';
 
 var alphabet = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz-_'.split('')
@@ -6389,251 +6634,6 @@ yeast.encode = encode;
 yeast.decode = decode;
 module.exports = yeast;
 
-},{}],43:[function(require,module,exports){
-"use strict";
-/// <reference path="./libs/phaser.d.ts" />
-var __extends = (this && this.__extends) || (function () {
-    var extendStatics = Object.setPrototypeOf ||
-        ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
-        function (d, b) { for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p]; };
-    return function (d, b) {
-        extendStatics(d, b);
-        function __() { this.constructor = d; }
-        d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
-    };
-})();
-Object.defineProperty(exports, "__esModule", { value: true });
-var Level_1 = require("./Level");
-var Game = /** @class */ (function (_super) {
-    __extends(Game, _super);
-    function Game() {
-        var _this = _super.call(this, window.innerWidth * window.devicePixelRatio, window.innerHeight * window.devicePixelRatio, Phaser.CANVAS, "gameDiv") || this;
-        _this.state.add("Level", Level_1.Level, false);
-        _this.state.start("Level");
-        return _this;
-    }
-    return Game;
-}(Phaser.Game));
-exports.Game = Game;
-},{"./Level":45}],44:[function(require,module,exports){
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-var GameProperties = /** @class */ (function () {
-    function GameProperties() {
-    }
-    GameProperties.GameWidth = 4000;
-    GameProperties.GameHeight = 4000;
-    GameProperties.GameElement = "gameDiv";
-    GameProperties.InGame = false;
-    return GameProperties;
-}());
-exports.GameProperties = GameProperties;
-},{}],45:[function(require,module,exports){
-"use strict";
-/// <reference path="./libs/phaser.d.ts" />
-var __extends = (this && this.__extends) || (function () {
-    var extendStatics = Object.setPrototypeOf ||
-        ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
-        function (d, b) { for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p]; };
-    return function (d, b) {
-        extendStatics(d, b);
-        function __() { this.constructor = d; }
-        d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
-    };
-})();
-Object.defineProperty(exports, "__esModule", { value: true });
-var io = require("socket.io-client");
-var GameProperties_1 = require("./GameProperties");
-var PlayerHelper_1 = require("./PlayerHelper");
-var RemotePlayer_1 = require("./RemotePlayer");
-var Level = /** @class */ (function (_super) {
-    __extends(Level, _super);
-    function Level() {
-        var _this = _super !== null && _super.apply(this, arguments) || this;
-        _this._enemyList = [];
-        return _this;
-    }
-    Level.prototype.preload = function () {
-        this.stage.disableVisibilityChange = true;
-        this.scale.scaleMode = Phaser.ScaleManager.RESIZE;
-        this.world.setBounds(0, 0, GameProperties_1.GameProperties.GameWidth, GameProperties_1.GameProperties.GameHeight);
-        this.physics.startSystem(Phaser.Physics.P2JS);
-        this.physics.p2.setBoundsToWorld(false, false, false, false);
-        this.physics.p2.gravity.y = 0;
-        this.physics.p2.applyGravity = false;
-        this.physics.p2.enableBody(this.physics.p2.walls, false);
-        // physics start system
-        //game.physics.p2.setImpactEvents(true);
-    };
-    Level.prototype.create = function () {
-        var _this = this;
-        this._socket = io.connect();
-        this.stage.backgroundColor = 0xE1A193;
-        console.log("client started");
-        this._socket.on("connect", function () { _this.OnSocketConnected(); });
-        // Listen to new enemy connections
-        this._socket.on("new_enemyPlayer", function (data) {
-            _this.OnNewPlayer(data);
-        });
-        // Listen to enemy movement 
-        this._socket.on("enemy_move", function (data) {
-            _this.OnEnemyMove(data);
-        });
-        // When received remove_player, remove the player passed; 
-        this._socket.on('remove_player', function (data) {
-            _this.OnRemovePlayer(data);
-        });
-    };
-    Level.prototype.update = function () {
-        // Move the player when the player is made
-        if (GameProperties_1.GameProperties.InGame) {
-            var pointer = this.input.mousePointer;
-            if (PlayerHelper_1.PlayerHelper.DistanceToPointer(this._player, pointer) <= 50) {
-                PlayerHelper_1.PlayerHelper.MoveToPointer(this._player, 0, pointer, 100);
-            }
-            else {
-                PlayerHelper_1.PlayerHelper.MoveToPointer(this._player, 500, pointer, 100);
-            }
-            // Send a new position data to the server 
-            this._socket.emit('move_player', { x: this._player.x, y: this._player.y, angle: this._player.angle });
-        }
-    };
-    Level.prototype.CreatePlayer = function () {
-        this._player = this.add.graphics(0, 0);
-        var radius = 100;
-        // Set a fill and line style
-        this._player.beginFill(0xffd900);
-        this._player.lineStyle(2, 0xffd900, 1);
-        this._player.drawCircle(0, 0, radius * 2);
-        this._player.endFill();
-        var bodySize = radius;
-        // Draw a shape
-        this.physics.p2.enableBody(this._player, true);
-        this._player.body.clearShapes();
-        this._player.body.addCircle(bodySize, 0, 0);
-        this._player.body.data.shapes[0].sensor = true;
-    };
-    Level.prototype.OnSocketConnected = function () {
-        console.log("OnSocketConnected: connected to server");
-        this.CreatePlayer();
-        GameProperties_1.GameProperties.InGame = true;
-        // Send the server our initial position and tell it we are connectedthis._socket.
-        this._socket.emit("new_player", { x: 0, y: 0, angle: 0 });
-    };
-    Level.prototype.OnNewPlayer = function (data) {
-        // Enemy object
-        var newEnemy = new RemotePlayer_1.RemotePlayer(data.id, data.x, data.y, data.angle, this);
-        this._enemyList.push(newEnemy);
-    };
-    // Server tells us there is a new enemy movement. We find the moved enemy
-    // and sync the enemy movement with the server
-    Level.prototype.OnEnemyMove = function (data) {
-        var movePlayer = this.FindEnemyById(data.id);
-        if (!movePlayer) {
-            return;
-        }
-        movePlayer.player.body.x = data.x;
-        movePlayer.player.body.y = data.y;
-        movePlayer.player.angle = data.angle;
-    };
-    // When the server notifies us of client disconnection, we find the disconnected
-    // enemy and remove from our game
-    Level.prototype.OnRemovePlayer = function (data) {
-        console.log("OnRemovePlayer");
-        var removePlayer = this.FindEnemyById(data.id);
-        // Player not found
-        if (!removePlayer) {
-            console.log('Player not found: ', data.id);
-            return;
-        }
-        removePlayer.player.destroy();
-        this._enemyList.splice(this._enemyList.indexOf(removePlayer), 1);
-    };
-    Level.prototype.FindEnemyById = function (id) {
-        for (var i = 0; i < this._enemyList.length; i++) {
-            if (this._enemyList[i].id == id) {
-                return this._enemyList[i];
-            }
-        }
-        return null;
-    };
-    return Level;
-}(Phaser.State));
-exports.Level = Level;
-},{"./GameProperties":44,"./PlayerHelper":46,"./RemotePlayer":47,"socket.io-client":33}],46:[function(require,module,exports){
-"use strict";
-/// <reference path="./libs/phaser.d.ts" />
-Object.defineProperty(exports, "__esModule", { value: true });
-var PlayerHelper = /** @class */ (function () {
-    function PlayerHelper() {
-    }
-    PlayerHelper.MoveToPointer = function (displayObject, speed, pointer, maxTime) {
-        var angle = this.AngleToPointer(displayObject, pointer);
-        if (maxTime > 0) {
-            //  We know how many pixels we need to move, but how fast?
-            speed = this.DistanceToPointer(displayObject, pointer) / (maxTime / 1000);
-        }
-        displayObject.body.velocity.x = Math.cos(angle) * speed;
-        displayObject.body.velocity.y = Math.sin(angle) * speed;
-        return angle;
-    };
-    PlayerHelper.DistanceToPointer = function (displayObject, pointer, isWorld) {
-        if (isWorld === void 0) { isWorld = false; }
-        var dx = (isWorld) ? displayObject.world.x - pointer.worldX :
-            displayObject.x - pointer.worldX;
-        var dy = (isWorld) ? displayObject.world.y - pointer.worldY :
-            displayObject.y - pointer.worldY;
-        return Math.sqrt(dx * dx + dy * dy);
-    };
-    PlayerHelper.AngleToPointer = function (displayObject, pointer, isWorld) {
-        if (isWorld === void 0) { isWorld = false; }
-        if (isWorld) {
-            return Math.atan2(pointer.worldY - displayObject.world.y, pointer.worldX - displayObject.world.x);
-        }
-        else {
-            return Math.atan2(pointer.worldY - displayObject.y, pointer.worldX - displayObject.x);
-        }
-    };
-    return PlayerHelper;
-}());
-exports.PlayerHelper = PlayerHelper;
-},{}],47:[function(require,module,exports){
-"use strict";
-/// <reference path="./libs/phaser.d.ts" />
-Object.defineProperty(exports, "__esModule", { value: true });
-var RemotePlayer = /** @class */ (function () {
-    function RemotePlayer(id, startX, startY, startAngle, state) {
-        this.id = id;
-        this.x = startX;
-        this.y = startY;
-        this.angle = startAngle;
-        this.player = state.add.graphics(this.x, this.y);
-        var radius = 100;
-        // Set a fill and line style
-        this.player.beginFill(0xffd900);
-        this.player.lineStyle(2, 0xffd900, 1);
-        this.player.drawCircle(0, 0, radius * 2);
-        this.player.endFill();
-        var bodySize = radius;
-        // Draw a shape
-        state.physics.p2.enableBody(this.player, true);
-        this.player.body.clearShapes();
-        this.player.body.addCircle(bodySize, 0, 0);
-        this.player.body.data.shapes[0].sensor = true;
-    }
-    return RemotePlayer;
-}());
-exports.RemotePlayer = RemotePlayer;
-},{}],48:[function(require,module,exports){
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-var Game_1 = require("./Game");
-function hello(compiler) {
-    console.log("Hello from " + compiler);
-}
-window.onload = function () {
-    new Game_1.Game();
-};
-},{"./Game":43}]},{},[48])
+},{}]},{},[6])
 
 //# sourceMappingURL=bundle.js.map
